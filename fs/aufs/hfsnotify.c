@@ -160,8 +160,8 @@ static void au_hfsn_free_group(struct fsnotify_group *group)
 }
 
 static int au_hfsn_handle_event(struct fsnotify_group *group,
-				struct inode *inode,
 				u32 mask, const void *data, int data_type,
+				struct inode *inode,
 				const struct qstr *file_name, u32 cookie,
 				struct fsnotify_iter_info *iter_info)
 {
