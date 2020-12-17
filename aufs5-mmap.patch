@@ -230,7 +230,7 @@ index f609e9ec4a253..d554b349c653c 100644
 +	vma_get_file(vma);
 +	file = vma->vm_file;
 +	prfile = vma->vm_prfile;
- 	ret = do_mmap_pgoff(vma->vm_file, start, size,
+ 	ret = do_mmap(vma->vm_file, start, size,
  			prot, flags, pgoff, &populate, NULL);
 +	if (!IS_ERR_VALUE(ret) && file && prfile) {
 +		struct vm_area_struct *new_vma;

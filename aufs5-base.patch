@@ -119,39 +119,6 @@ index a28e4db075ede..12e725e34c6ca 100644
  /*
   * vfsmount lock must be held for write
   */
-diff --git a/fs/read_write.c b/fs/read_write.c
-index bbfa9b12b15eb..5d684d7d29207 100644
---- a/fs/read_write.c
-+++ b/fs/read_write.c
-@@ -499,6 +499,28 @@ static ssize_t __vfs_write(struct file *file, const char __user *p,
- 		return -EINVAL;
- }
- 
-+vfs_readf_t vfs_readf(struct file *file)
-+{
-+	const struct file_operations *fop = file->f_op;
-+
-+	if (fop->read)
-+		return fop->read;
-+	if (fop->read_iter)
-+		return new_sync_read;
-+	return ERR_PTR(-ENOSYS); /* doesn't have ->read(|_iter)() op */
-+}
-+
-+vfs_writef_t vfs_writef(struct file *file)
-+{
-+	const struct file_operations *fop = file->f_op;
-+
-+	if (fop->write)
-+		return fop->write;
-+	if (fop->write_iter)
-+		return new_sync_write;
-+	return ERR_PTR(-ENOSYS); /* doesn't have ->write(|_iter)() op */
-+}
-+
- ssize_t __kernel_write(struct file *file, const void *buf, size_t count, loff_t *pos)
- {
- 	mm_segment_t old_fs;
 diff --git a/fs/splice.c b/fs/splice.c
 index 4e53efbd621db..9f230ee854e20 100644
 --- a/fs/splice.c
@@ -197,7 +164,7 @@ diff --git a/include/linux/fs.h b/include/linux/fs.h
 index 45cc10cdf6ddd..916efd7e612b3 100644
 --- a/include/linux/fs.h
 +++ b/include/linux/fs.h
-@@ -1355,6 +1355,7 @@ extern void fasync_free(struct fasync_struct *);
+@@ -1370,6 +1370,7 @@
  /* can be called from interrupts */
  extern void kill_fasync(struct fasync_struct **, int, int);
  
@@ -205,7 +172,7 @@ index 45cc10cdf6ddd..916efd7e612b3 100644
  extern void __f_setown(struct file *filp, struct pid *, enum pid_type, int force);
  extern int f_setown(struct file *filp, unsigned long arg, int force);
  extern void f_delown(struct file *filp);
-@@ -1847,6 +1848,7 @@ struct file_operations {
+@@ -1858,6 +1859,7 @@
  	ssize_t (*sendpage) (struct file *, struct page *, int, size_t, loff_t *, int);
  	unsigned long (*get_unmapped_area)(struct file *, unsigned long, unsigned long, unsigned long, unsigned long);
  	int (*check_flags)(int);
@@ -213,20 +180,7 @@ index 45cc10cdf6ddd..916efd7e612b3 100644
  	int (*flock) (struct file *, int, struct file_lock *);
  	ssize_t (*splice_write)(struct pipe_inode_info *, struct file *, loff_t *, size_t, unsigned int);
  	ssize_t (*splice_read)(struct file *, loff_t *, struct pipe_inode_info *, size_t, unsigned int);
-@@ -1917,6 +1919,12 @@ ssize_t rw_copy_check_uvector(int type, const struct iovec __user * uvector,
- 			      struct iovec *fast_pointer,
- 			      struct iovec **ret_pointer);
- 
-+typedef ssize_t (*vfs_readf_t)(struct file *, char __user *, size_t, loff_t *);
-+typedef ssize_t (*vfs_writef_t)(struct file *, const char __user *, size_t,
-+				loff_t *);
-+vfs_readf_t vfs_readf(struct file *file);
-+vfs_writef_t vfs_writef(struct file *file);
-+
- extern ssize_t __vfs_read(struct file *, char __user *, size_t, loff_t *);
- extern ssize_t vfs_read(struct file *, char __user *, size_t, loff_t *);
- extern ssize_t vfs_write(struct file *, const char __user *, size_t, loff_t *);
-@@ -2349,6 +2357,7 @@ extern int current_umask(void);
+@@ -2362,6 +2370,7 @@
  extern void ihold(struct inode * inode);
  extern void iput(struct inode *);
  extern int generic_update_time(struct inode *, struct timespec64 *, int);
@@ -234,10 +188,10 @@ index 45cc10cdf6ddd..916efd7e612b3 100644
  
  /* /sys/fs */
  extern struct kobject *fs_kobj;
-@@ -2633,6 +2642,7 @@ static inline bool sb_is_blkdev_sb(struct super_block *sb)
- 	return false;
+@@ -2549,6 +2558,7 @@
  }
- #endif
+ 
+ void emergency_thaw_all(void);
 +extern int __sync_filesystem(struct super_block *, int);
  extern int sync_filesystem(struct super_block *);
  extern const struct file_operations def_blk_fops;
@@ -267,15 +221,16 @@ diff --git a/include/linux/mnt_namespace.h b/include/linux/mnt_namespace.h
 index 35942084cd40d..24f5fd1a789de 100644
 --- a/include/linux/mnt_namespace.h
 +++ b/include/linux/mnt_namespace.h
-@@ -6,11 +6,14 @@
- struct mnt_namespace;
+@@ -7,12 +7,15 @@
  struct fs_struct;
  struct user_namespace;
+ struct ns_common;
 +struct vfsmount;
  
  extern struct mnt_namespace *copy_mnt_ns(unsigned long, struct mnt_namespace *,
  		struct user_namespace *, struct fs_struct *);
  extern void put_mnt_ns(struct mnt_namespace *ns);
+ extern struct ns_common *from_mnt_ns(struct mnt_namespace *);
  
 +extern int is_current_mnt_ns(struct vfsmount *mnt);
 +
